@@ -16,6 +16,8 @@ $collectionNamesToSync = array_slice($argv, 6);
 ////////////////////////////////////
 
 $ig = new \InstagramAPI\Instagram($debug, $truncatedDebug);
+// The directory where all photos are stored (to avoid redownloading)
+$storageDir = $collectionsDir.DIRECTORY_SEPARATOR.".ORIGINAL_MEDIA";
 
 function debug($msg){
     fwrite(STDERR, $msg."\n");
@@ -158,7 +160,7 @@ try {
 
                     // Save the actual file in the directory holding all
                     // collections if it isn't already there...
-                    $filepath = $collectionsDir.DIRECTORY_SEPARATOR.$fname;
+                    $filepath = $storageDir.DIRECTORY_SEPARATOR.$fname;
                     if (!file_exists($filepath)) {
                         debug("      File not saved, fetching: $fname");
                         debug("      post url: $post_url");
