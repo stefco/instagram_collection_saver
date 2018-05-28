@@ -4,7 +4,7 @@
 set_time_limit(0);
 date_default_timezone_set('UTC');
 
-require __DIR__.'/vendor/autoload.php';
+require __DIR__.DIRECTORY_SEPARATOR."vendor".DIRECTORY_SEPARATOR."autoload.php";
 
 /////// COMMAND LINE OPTIONS ///////
 $debug = json_decode($argv[1]);
@@ -53,7 +53,6 @@ function get_urls($media){
 
     if ($urlHolder === null) {
         // maybe means we have an image
-        // debug("      media has no video version: $id");
         $urlHolder = $media->getImageVersions2();
     } else {
         // this is a video; return its URL
@@ -62,7 +61,6 @@ function get_urls($media){
 
     if ($urlHolder === null) {
         // means we have a carousel; handle them independently
-        // debug("      media has no image version: $id");
         $urls = array();
         $carousel = $media->getCarouselMedia();
         foreach($carousel as $i => $cmedia){
@@ -109,11 +107,11 @@ try {
     foreach($collectionsToSync as $i => $collection) {
         $name = $collection->getCollectionName();
         debug("On collection: $name");
-        $colDir = $collectionsDir."/".$name;
-        debug("  Collection directory: $colDir");
-        if (!file_exists($colDir)) {
+        $collectionDir = $collectionsDir.DIRECTORY_SEPARATOR.urlencode($name);
+        debug("  Collection directory: $collectionDir");
+        if (!file_exists($collectionDir)) {
             debug("  Directory does not exist, making now...");
-            mkdir($colDir, 0777, true); // recursive=true
+            mkdir($collectionDir, 0777, true); // recursive=true
         }
         $colId = $collection->getCollectionId();
         debug("  Collection ID: $colId");
@@ -123,13 +121,13 @@ try {
         $sleepFirst = false; // don't sleep on the first loop...
         do {
             if ($sleepFirst) {
-                // Sleep for 3-7 seconds before requesting the next page. This
+                // Sleep for 3-5 seconds before requesting the next page. This
                 // is just an example of an okay sleep time. It is very
                 // important that your scripts always pause between requests
                 // that may run very rapidly, otherwise Instagram will throttle
                 // you temporarily for abusing their API!
-                debug("    Processed a page, sleeping for 3-7s...");
-                sleep(rand(3, 7));
+                debug("    Processed a page, sleeping for 3-5s...");
+                sleep(rand(3, 5));
             } else {
                 // Don't want to sleep on the first loop but do want to sleep
                 // before subsequent loops.
@@ -160,20 +158,20 @@ try {
 
                     // Save the actual file in the directory holding all
                     // collections if it isn't already there...
-                    $filepath = $collectionsDir."/".$fname;
+                    $filepath = $collectionsDir.DIRECTORY_SEPARATOR.$fname;
                     if (!file_exists($filepath)) {
                         debug("      File not saved, fetching: $fname");
                         debug("      post url: $post_url");
-                        sleep(rand(1, 3));
+                        sleep(rand(1, 2));
                         copy($url, $filepath);
                     }
 
-                    // Also symlink that file into the collection we are
+                    // Also hardlink that file into the collection we are
                     // updating
-                    $linkpath = $colDir."/".$fname;
+                    $linkpath = $collectionDir.DIRECTORY_SEPARATOR.$fname;
                     if (!file_exists($linkpath)) {
-                        debug("      Symlinking to: $linkpath");
-                        symlink($filepath, $linkpath);
+                        debug("      Hard linking to: $linkpath");
+                        link($filepath, $linkpath);
                     }
                 }
             }
