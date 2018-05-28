@@ -49,15 +49,20 @@ function instagram_id_to_url($instagram_id){
 // URL could be video or photo, in carousel or not
 function get_urls($media){
     $id = $media->getId();
-    $urlHolder = $media->getImageVersions2();
+    $urlHolder = $media->getVideoVersions();
+
     if ($urlHolder === null) {
-        // maybe means we have a video
-        debug("      media has no image version: $id");
-        $urlHolder = $media->getVideoVersions();
+        // maybe means we have an image
+        debug("      media has no video version: $id");
+        $urlHolder = $media->getImageVersions2();
+    } else {
+        // this is a video; return its URL
+        return [$urlHolder[0]->getUrl()];
     }
+
     if ($urlHolder === null) {
         // means we have a carousel; handle them independently
-        debug("      media has no video version: $id");
+        debug("      media has no image version: $id");
         $urls = array();
         $carousel = $media->getCarouselMedia();
         foreach($carousel as $i => $cmedia){
@@ -65,6 +70,7 @@ function get_urls($media){
         }
         return $urls;
     }
+    // It was an image after all
     return [$urlHolder->getCandidates()[0]->getUrl()];
 }
 
@@ -158,7 +164,7 @@ try {
                     if (!file_exists($filepath)) {
                         debug("      File not saved, fetching: $fname");
                         debug("      post url: $post_url");
-                        sleep(rand(0.5, 2));
+                        sleep(rand(1, 3));
                         copy($url, $filepath);
                     }
 
