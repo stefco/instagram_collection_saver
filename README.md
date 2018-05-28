@@ -22,3 +22,55 @@ php -r "unlink('composer-setup.php');"
 ```bash
 composer require mgp25/instagram-php
 ```
+
+## Use
+
+### Authentication
+
+The python-based command line interface to this program will check your
+`~/.netrc` file for an "instagram.com" machine entry like the following:
+
+```
+machine instagram.com
+login your.username
+password your.password
+```
+
+If such an entry doesn't exist (or if either or both of the login/password
+entries are not specified for "instagram.com"), you will be prompted for the
+missing login information when the script is called.
+
+### Command Line Interface
+
+Use the `igcolsave.py` script from the command line to download stuff. It's got
+a nicer interface than the PHP script (since I'm more familiar with python and
+love `argparse` for writing CLIs). See it's capabilities with
+`igcolsave.py -h`.
+
+Note that this script is deliberately highly throttled in order to avoid
+pissing off Instagram. The intended use is to archive things you've saved, so
+it shouldn't *have* to be that fast anyway. It will conservatively wait a
+couple of seconds (the actual values are random) between image downloads in
+order to avoid taxing Instagram's API more than a normal user would.
+
+### Example
+
+Download all of your collections to `~/Pictures/InstagramCollections` with:
+
+```bash
+igcolsave.py
+```
+
+Download them with verbose progress info (but no hardcore debugging stuff)
+using:
+
+```bash
+igcolsave.py -v
+```
+
+Download only your collection called "Cars" and "Tasty Fruits" (if they exits)
+using:
+
+```bash
+igcolsave.py -c Cars "Tasty Fruits"
+```
