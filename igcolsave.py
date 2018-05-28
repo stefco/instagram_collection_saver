@@ -8,6 +8,7 @@ save them to an output directory.
 
 import sys
 import os
+from netrc import netrc
 from argparse import ArgumentParser
 from numbers import Integral
 from collections import namedtuple
@@ -38,6 +39,32 @@ if __name__ == "__main__":
         progress; `-vv` provides truncated debug info; and `-vvv` provides full
         debug info.""")
     ARGS = PARSER.parse_args()
+
+
+# fix python2 input
+try:
+    input = raw_input  # pylint: disable=redefined-builtin
+except NameError:
+    pass
+
+
+def get_auth():
+    """Read authentication information from the `.netrc` "instagram.com"
+    machine entry. If it isn't stored there, and this is an interactive
+    session, prompt the user for that info. If it isn't available anywhere,
+    raise an IOError. Returns `username` and `password` as a tuple."""
+    import __main__
+    interactive = not hasattr(__main__, '__file__')
+    username, _account, password = netrc().authenticators("instagram.com")
+    if username is None:
+        if not interactive:
+            raise IOError("Cannot read username from .netrc or user input.")
+        username = input("Instagram username:")
+    if password is None:
+        if not interactive:
+            raise IOError("Cannot read password from .netrc or user input.")
+        password = input("Password (warning: not hidden):")
+    return username, password
 
 
 def mkdirp(newdir=DEFAULT_COLLECTIONS_DIR):
@@ -74,8 +101,16 @@ def sync(collections=DEFAULT_COLLECTIONS,
     (i.e. finish the command before returning) by specifying
     `synchronous=True`."""
     phpfile = os.path.join(SCRIPTDIR, 'saveImages.php')
-    cmd = ['php', phpfile, str(debug).lower(),
-           str(truncated_debug).lower(), collections_dir] + list(collections)
+    username, password = get_auth()
+    cmd = [
+        'php',
+        phpfile,
+        str(debug).lower(),
+        str(truncated_debug).lower(),
+        username,
+        password,
+        collections_dir,
+    ] + list(collections)
     proc = Popen(cmd, stderr=logfile)
     if synchronous:
         proc.wait()
