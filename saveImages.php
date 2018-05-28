@@ -15,16 +15,13 @@ $collectionsDir = $argv[3];
 $collectionNamesToSync = array_slice($argv, 4);
 ////////////////////////////////////
 
-# TODO delet this
-var_dump($argv);
-var_dump($debug);
-var_dump($truncatedDebug);
-var_dump($collectionsDir);
-var_dump($collectionNamesToSync);
-
 $ig = new \InstagramAPI\Instagram($debug, $truncatedDebug);
 
-fwrite(STDERR, "Logging in as $username...\n");
+function debug($msg){
+    fwrite(STDERR, $msg."\n");
+}
+
+debug("Logging in as $username...");
 
 // A function for getting the instagram URL, taken from:
 // https://medium.com/stirtingale/how-to-convert-an-instagram-id-to-a-url-in-php-cbe77ed7aa00
@@ -33,30 +30,19 @@ fwrite(STDERR, "Logging in as $username...\n");
 // based on ggwarpig stackoverflow anwser to 
 // "Where do I find the Instagram media ID of a image"
 // @ https://stackoverflow.com/a/37246231
-
 function instagram_id_to_url($instagram_id){
     $url_prefix = "https://www.instagram.com/p/";
-
     if(!empty(strpos($instagram_id, '_'))){
-
         $parts = explode('_', $instagram_id);
-
         $instagram_id = $parts[0];
-
         $userid = $parts[1];
-
     }
-
     $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-
     while($instagram_id > 0){
-
         $remainder = $instagram_id % 64;
         $instagram_id = ($instagram_id-$remainder) / 64;
         $url_suffix = $alphabet{$remainder} . $url_suffix;
-
     };
-
     return $url_prefix.$url_suffix;
 }
 
@@ -66,12 +52,12 @@ function get_urls($media){
     $urlHolder = $media->getImageVersions2();
     if ($urlHolder === null) {
         // maybe means we have a video
-        fwrite(STDERR, "media has no image version: $id\n");
+        debug("      media has no image version: $id");
         $urlHolder = $media->getVideoVersions();
     }
     if ($urlHolder === null) {
         // means we have a carousel; handle them independently
-        fwrite(STDERR, "media has no video version: $id\n");
+        debug("      media has no video version: $id");
         $urls = array();
         $carousel = $media->getCarouselMedia();
         foreach($carousel as $i => $cmedia){
@@ -85,8 +71,8 @@ function get_urls($media){
 try {
     $ig->login($username, $password);
 } catch (\Exception $e) {
-    echo 'Something went wrong: '.$e->getMessage()."\n";
-    exit(0);
+    echo 'Something went wrong while logging in: '.$e->getMessage()."\n";
+    exit(1);
 }
 
 try {
@@ -96,61 +82,57 @@ try {
 
     /////// PICK COLLECTIONS TO SYNC ///////
     if (count($collectionNamesToSync) === 0) {
-        fwrite(STDERR, "Syncing all collections.\n");
+        debug("Syncing all collections.");
         $collectionsToSync = $allCollections;
     } else {
-        fwrite(STDERR, "Looking through more than zero collections.\n");
+        debug("Looking for specific collections:");
+        foreach($collectionNamesToSync as $i => $name){
+            debug("  $name");
+        }
         foreach($allCollections as $i => $collection) {
             $name = $collection->getCollectionName();
             if (in_array($name, $collectionNamesToSync, true)) {  # strict=true
-                fwrite(STDERR, "Found collection on Instagram: $name\n");
+                debug("Found collection on Instagram: $name");
                 array_push($collectionsToSync, $collection);
             }
         }
     }
-    ////////////////////////////////////////
 
     /////// SYNC COLLECTIONS IN ORDER ///////
-    fwrite(STDERR, "Syncing collections now.\n");
+    debug("Syncing collections now.");
     foreach($collectionsToSync as $i => $collection) {
         $name = $collection->getCollectionName();
-        fwrite(STDERR, "On collection: $name\n");
+        debug("On collection: $name");
         $colDir = $collectionsDir."/".$name;
-        fwrite(STDERR, "  Collection directory: $colDir\n");
+        debug("  Collection directory: $colDir");
         if (!file_exists($colDir)) {
-            fwrite(STDERR, "  Directory does not exist, making now...\n");
+            debug("  Directory does not exist, making now...");
             mkdir($colDir, 0777, true);  # recursive=true
         }
         $colId = $collection->getCollectionId();
-        fwrite(STDERR, "  Collection ID: $colId\n");
+        debug("  Collection ID: $colId");
 
         // ITERATE THROUGH PAGES OF CONTENT
         $maxId = null;  # On the first page...
         $sleepFirst = false;  # don't sleep on the first loop...
         do {
             if ($sleepFirst) {
-                // Sleep for 5 seconds before requesting the next page. This is
-                // just an example of an okay sleep time. It is very important that
-                // your scripts always pause between requests that may run very
-                // rapidly, otherwise Instagram will throttle you temporarily for
-                // abusing their API!
-                fwrite(STDERR, "    Processed a page, sleeping for 3-7s...\n");
+                // Sleep for 3-7 seconds before requesting the next page. This
+                // is just an example of an okay sleep time. It is very
+                // important that your scripts always pause between requests
+                // that may run very rapidly, otherwise Instagram will throttle
+                // you temporarily for abusing their API!
+                debug("    Processed a page, sleeping for 3-7s...");
                 sleep(rand(3, 7));
             } else {
                 // Don't want to sleep on the first loop but do want to sleep
                 // before subsequent loops.
-                fwrite(STDERR, "    Processing first page.\n");
+                debug("    Processing first page.");
                 $sleepFirst = true;
             }
             $response = $ig->collection->getFeed($colId, $maxId);
             $feedItems = $response->getItems();
 
-
-            // Let's look at the available methods for this item as well as its
-            // JSON contents.
-            /* $feedItems[0]->printJson(); // Shows its actual JSON contents (available data). */
-            /* $feedItems[0]->printPropertyDescriptions(); // List of supported properties. */
-            /* $feedItems[0]->getMedia()->printPropertyDescriptions(); // List of supported properties. */
 
             // Save each image
             foreach($feedItems as $j => $item) {
@@ -161,21 +143,8 @@ try {
                 $urls = get_urls($media);
                 $num_urls = count($urls);
                 foreach($urls as $k => $url){
-                    /* $isReelMedia = $media->getIsReelMedia(); */
-                    /* echo "is reel media: $isReelMedia\n"; */
-                    /* $videoVersions = $media->getVideoVersions(); */
-                    /* $hasVideoVersions = $media->hasVideoVersions(); */
-                    /* if ($hasVideoVersions) { */
-                        /* $videoVersions->printPropertyDescriptions(); */
-                    /* } else { */
-                        /* echo "no video versions.\n"; */
-                    /* } */
-                    /* echo "video versions: $videoVersions\n"; */
-                    /* $postUrl = $media->getUrl(); */
-                    /* echo "post url: $postUrl\n"; */
                     $remoteFname = parse_url($url, PHP_URL_PATH);
                     $ext = pathinfo($remoteFname, PATHINFO_EXTENSION);
-                    /* $fname = urlencode($username."-".$id.".".$ext); */
                     $fname_base = basename(parse_url($post_url, PHP_URL_PATH));
                     if ($num_urls != 1){
                         $kstr = (string) $k;
@@ -187,24 +156,21 @@ try {
                     // collections if it isn't already there...
                     $filepath = $collectionsDir."/".$fname;
                     if (!file_exists($filepath)) {
-                        fwrite(STDERR, "File not saved, fetching: $fname\n");
-                        fwrite(STDERR, "post url: $post_url\n");
+                        debug("      File not saved, fetching: $fname");
+                        debug("      post url: $post_url");
                         sleep(rand(0.5, 2));
                         copy($url, $filepath);
                     }
 
-                    // Also symlink that file into the collection we are updating
+                    // Also symlink that file into the collection we are
+                    // updating
                     $linkpath = $colDir."/".$fname;
                     if (!file_exists($linkpath)) {
-                        fwrite(STDERR, "Symlinking to: $linkpath\n");
+                        debug("      Symlinking to: $linkpath");
                         symlink($filepath, $linkpath);
                     }
                 }
             }
-
-            /* $firstItemMedia = $feedItems[0]->getMedia(); */
-            /* $firstUrl = $feedItems[0]->getMedia()->getImageVersions2()->getCandidates()[0]->getUrl(); */
-            /* fwrite(STDERR, "    First item URL: $firstUrl"); */
 
             // Now we must update the maxId variable to the "next page".  This
             // will be a null value again when we've reached the last page!
@@ -213,10 +179,10 @@ try {
             $maxId = $response->getNextMaxId();
 
         // Must use "!==" for comparison instead of "!=".
-        } while ($maxId === null);  # TODO delete this line to loop >once.
-        /* } while ($maxId !== null); */
+        } while ($maxId !== null);
+        debug("Finished collection: $name");
     }
-    /////////////////////////////////////////
+    debug("Finished all requested syncing operations.");
 } catch (\Exception $e) {
     echo 'Something went wrong: '.$e->getMessage()."\n";
 }
