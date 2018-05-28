@@ -15,7 +15,9 @@ from collections import namedtuple
 from subprocess import Popen, PIPE
 
 DESC = """Download images saved in your Instagram collections and save them to
-files on disk."""
+files on disk. Put authentication info under an "instagram.com" entry in
+`.netrc` or enter it at the command line when prompted during script
+execution."""
 DEFAULT_COLLECTIONS_DIR = os.path.join(os.path.expanduser("~"), "Pictures",
                                        "InstagramCollections")
 DEFAULT_COLLECTIONS = ()  # if none are specified, try syncing all
@@ -43,7 +45,7 @@ if __name__ == "__main__":
 
 # fix python2 input
 try:
-    input = raw_input  # pylint: disable=redefined-builtin
+    input = raw_input  # pylint: disable=redefined-builtin,invalid-name
 except NameError:
     pass
 
