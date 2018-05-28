@@ -38,7 +38,6 @@ if __name__ == "__main__":
         progress; `-vv` provides truncated debug info; and `-vvv` provides full
         debug info.""")
     ARGS = PARSER.parse_args()
-    print(ARGS.verbose)  # pylint: disable=superfluous-parens
 
 
 def mkdirp(newdir=DEFAULT_COLLECTIONS_DIR):
