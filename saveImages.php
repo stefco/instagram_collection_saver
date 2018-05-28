@@ -1,5 +1,5 @@
 <?php
-# (c) Stefan Countryman, 2018
+// (c) Stefan Countryman, 2018
 
 set_time_limit(0);
 date_default_timezone_set('UTC');
@@ -53,7 +53,7 @@ function get_urls($media){
 
     if ($urlHolder === null) {
         // maybe means we have an image
-        debug("      media has no video version: $id");
+        // debug("      media has no video version: $id");
         $urlHolder = $media->getImageVersions2();
     } else {
         // this is a video; return its URL
@@ -62,7 +62,7 @@ function get_urls($media){
 
     if ($urlHolder === null) {
         // means we have a carousel; handle them independently
-        debug("      media has no image version: $id");
+        // debug("      media has no image version: $id");
         $urls = array();
         $carousel = $media->getCarouselMedia();
         foreach($carousel as $i => $cmedia){
@@ -97,7 +97,7 @@ try {
         }
         foreach($allCollections as $i => $collection) {
             $name = $collection->getCollectionName();
-            if (in_array($name, $collectionNamesToSync, true)) {  # strict=true
+            if (in_array($name, $collectionNamesToSync, true)) { // strict=true
                 debug("Found collection on Instagram: $name");
                 array_push($collectionsToSync, $collection);
             }
@@ -113,14 +113,14 @@ try {
         debug("  Collection directory: $colDir");
         if (!file_exists($colDir)) {
             debug("  Directory does not exist, making now...");
-            mkdir($colDir, 0777, true);  # recursive=true
+            mkdir($colDir, 0777, true); // recursive=true
         }
         $colId = $collection->getCollectionId();
         debug("  Collection ID: $colId");
 
         // ITERATE THROUGH PAGES OF CONTENT
-        $maxId = null;  # On the first page...
-        $sleepFirst = false;  # don't sleep on the first loop...
+        $maxId = null; // On the first page...
+        $sleepFirst = false; // don't sleep on the first loop...
         do {
             if ($sleepFirst) {
                 // Sleep for 3-7 seconds before requesting the next page. This
