@@ -154,7 +154,7 @@ try {
                     $fname_base = basename(parse_url($post_url, PHP_URL_PATH));
                     if ($num_urls != 1){
                         $kstr = (string) $k;
-                        $fname_base = $fname_base."-".$kstr;
+                        $fname_base = $fname_base.".".$kstr;
                     }
                     $fname = $fname_base.".".$ext;
 
