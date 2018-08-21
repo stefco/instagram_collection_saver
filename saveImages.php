@@ -18,6 +18,7 @@ $collectionNamesToSync = array_slice($argv, 6);
 $ig = new \InstagramAPI\Instagram($debug, $truncatedDebug);
 // The directory where all photos are stored (to avoid redownloading)
 $storageDir = $collectionsDir.DIRECTORY_SEPARATOR.".ORIGINAL_MEDIA";
+$jsonDir = $collectionsDir.DIRECTORY_SEPARATOR.".JSON";
 
 function debug($msg){
     fwrite(STDERR, $msg."\n");
@@ -140,7 +141,7 @@ try {
             $feedItems = $response->getItems();
 
 
-            // Save each image
+            // Iterate through each post and download the images
             foreach($feedItems as $j => $item) {
                 $media = $item->getMedia();
                 $id = $media->getId();
@@ -148,15 +149,25 @@ try {
                 $post_url = instagram_id_to_url($id);
                 $urls = get_urls($media);
                 $num_urls = count($urls);
+                $fname_base = basename(parse_url($post_url, PHP_URL_PATH));
+                // Save the JSON data returned from the API for later perusal;
+                // overwrite local file with whatever the latest info is.
+                $itemjson = (string)$item;
+                $jsonfname = $fname_base.".json";
+                $jsonpath = $jsonDir.DIRECTORY_SEPARATOR.$jsonfname;
+                file_put_contents($jsonpath, $itemjson);
+                // Actually get the URLs for each media item and download each
+                // of them; if there are multiple media items for a given post,
+                // enumerate them in the filename.
                 foreach($urls as $k => $url){
                     $remoteFname = parse_url($url, PHP_URL_PATH);
                     $ext = pathinfo($remoteFname, PATHINFO_EXTENSION);
-                    $fname_base = basename(parse_url($post_url, PHP_URL_PATH));
                     if ($num_urls != 1){
                         $kstr = (string) $k;
-                        $fname_base = $fname_base.".".$kstr;
+                        $fname = $fname_base.".".$kstr.".".$ext;
+                    } else {
+                        $fname = $fname_base.".".$ext;
                     }
-                    $fname = $fname_base.".".$ext;
 
                     // Save the actual file in the directory holding all
                     // collections if it isn't already there...
