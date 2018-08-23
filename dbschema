@@ -1,0 +1,28 @@
+POSTS
+=====
+pk                          : int64     : the photo's ID or (presumably) "primary key"
+taken_at                    : int32     : the timestamp (as used by datetime.fromtimestamp)
+media_type                  : int8      : presumably distinguishes between post types
+comment_likes_enabled       : bool      :
+comment_threading_enabled   : bool      :
+has_more_comments           : bool      :
+user_pk                     : int64     : foreign key for USERS table
+photo_of_you                : bool      :
+caption_text                : string    :
+post_json                   : string    :
+like_count                  : int32     :
+has_user_saved              : bool      :
+saved_collection_ids        : int64     :
+
+USERS
+=====
+pk                          : int64     :
+username                    : string    :
+full_name                   : string    :
+is_private                  : bool      :
+profile_pic_url             : string    :
+
+COLLECTIONS
+===========
+pk                          : int64     :
+name                        : string    :
