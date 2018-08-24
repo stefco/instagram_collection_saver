@@ -7,6 +7,7 @@ download the associated media.
 
 import os
 import sqlite3
+import json
 from collections import namedtuple
 from textwrap import dedent
 
@@ -33,7 +34,7 @@ class InstagramDb(object):
         self.connection = sqlite3.connect(self.path)
         self.cursor = self.connection.cursor()
 
-    TABLE_COMMANDS = namedtuple(
+    TABLE_DEFINITIONS = namedtuple(
         'namespace',
         (
             'USERS',
@@ -55,7 +56,7 @@ class InstagramDb(object):
         COLLECTIONS=dedent_sql("""
             CREATE TABLE IF NOT EXISTS collections (
                 pk                          text    PRIMARY KEY,
-                name                        text    NOT NULL
+                name                        text
             );
         """),
         POSTS=dedent_sql("""
@@ -71,7 +72,7 @@ class InstagramDb(object):
                 caption_text                text    NOT NULL,
                 post_json                   text    NOT NULL,
                 like_count                  integer NOT NULL,
-                has_user_saved              integer NOT NULL,
+                has_viewer_saved            integer NOT NULL,
                 FOREIGN KEY (user_pk) REFERENCES users (pk)
                     ON DELETE CASCADE ON UPDATE NO ACTION
             );
@@ -103,8 +104,57 @@ class InstagramDb(object):
         """Initialize tables in the instagram database if they don't already
         exist. If ``commit`` is ``True`` (default), commit the changes
         immediately. Returns ``self`` to allow for chained commands."""
-        for command in self.TABLE_COMMANDS:
+        for command in self.TABLE_DEFINITIONS:
             self.cursor.execute(command.strip(';'))
+        if commit:
+            self.connection.commit()
+        return self
+
+    def save_post(self, post, commit=True):
+        """Save an instagram post (as raw JSON returned from the API) to this
+        database. Returns ``self`` to allow for chained commands."""
+        media = json.loads(post)['media']
+        self.cursor.execute(
+            'INSERT OR REPLACE INTO posts VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            (
+                str(media['pk']),
+                int(media['taken_at']),
+                int(media['media_type']),
+                int(media['comment_likes_enabled']),
+                int(media['comment_threading_enabled']),
+                int(media['has_more_comments']),
+                int(media['user']['pk']),
+                int(media['photo_of_you']),
+                str(media['caption']['text']),
+                str(post),
+                int(media['like_count']),
+                int(media['has_viewer_saved']),
+            )
+        )
+        self.cursor.executemany(
+            'INSERT OR IGNORE INTO collections VALUES (?, "")',
+            [(i,) for i in media['saved_collection_ids']]
+        )
+        self.cursor.execute(
+            'INSERT OR REPLACE INTO users VALUES (?, ?, ?, ?, ?)',
+            (
+                str(media['user']['pk']),
+                str(media['user']['username']),
+                str(media['user']['full_name']),
+                int(media['user']['is_private']),
+                str(media['user']['profile_pic_url'])
+            )
+        )
+        # TODO delete existing collection relations for this post
+        # self.cursor.execute('
+        self.cursor.execute(
+            'DELETE FROM collection_relations WHERE post_pk=?',
+            (media['pk'],)
+        )
+        self.cursor.executemany(
+            'INSERT INTO collection_relations VALUES (?, ?)',
+            [(str(media['pk']), str(k)) for k in media['saved_collection_ids']]
+        )
         if commit:
             self.connection.commit()
         return self
