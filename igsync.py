@@ -105,7 +105,46 @@ class InstagramDb(object):
         exist. If ``commit`` is ``True`` (default), commit the changes
         immediately. Returns ``self`` to allow for chained commands."""
         for command in self.TABLE_DEFINITIONS:
-            self.cursor.execute(command.strip(';'))
+            self.cursor.execute(command)
+        if commit:
+            self.connection.commit()
+        return self
+
+    def save_user(self, user, commit=True):
+        """Save an instagram user (either a dict or raw JSON returned from the
+        API) to this database. Returns ``self`` to allow for chained
+        commands."""
+        if not isinstance(user, dict):
+            user = json.loads(user)
+        self.cursor.execute(
+            'INSERT OR REPLACE INTO users VALUES (?, ?, ?, ?, ?)',
+            (
+                str(user['pk']),
+                str(user['username']),
+                str(user['full_name']),
+                int(user['is_private']),
+                str(user['profile_pic_url'])
+            )
+        )
+        if commit:
+            self.connection.commit()
+        return self
+
+    def save_collection(self, collection_pk, name="", overwrite=True,
+                        commit=True):
+        """Save an instagram collection (either a dict or raw JSON returned
+        from the API) to this database. ``collection_pk`` is the primary key of
+        the collection as returned by Instagram's API and ``name`` is the name
+        of the collection as defined by the user. If ``overwrite`` is ``True``,
+        overwrite any existing collection (default). Otherwise, only create the
+        entry if the collection is not already saved. Returns ``self`` to allow
+        for chained commands."""
+        self.cursor.execute(
+            'INSERT OR {} INTO collections VALUES (?, "")'.format(
+                'REPLACE' if overwrite else 'IGNORE'
+            ),
+            (collection_pk,)
+        )
         if commit:
             self.connection.commit()
         return self
@@ -114,6 +153,11 @@ class InstagramDb(object):
         """Save an instagram post (as raw JSON returned from the API) to this
         database. Returns ``self`` to allow for chained commands."""
         media = json.loads(post)['media']
+        # make sure the user and collection are in their respective tables
+        self.save_user(media['user'], commit=False)
+        for collection_pk in media['saved_collection_ids']:
+            self.save_collection(collection_pk, overwrite=False, commit=False)
+        # save the post
         self.cursor.execute(
             'INSERT OR REPLACE INTO posts VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
             (
@@ -131,22 +175,7 @@ class InstagramDb(object):
                 int(media['has_viewer_saved']),
             )
         )
-        self.cursor.executemany(
-            'INSERT OR IGNORE INTO collections VALUES (?, "")',
-            [(i,) for i in media['saved_collection_ids']]
-        )
-        self.cursor.execute(
-            'INSERT OR REPLACE INTO users VALUES (?, ?, ?, ?, ?)',
-            (
-                str(media['user']['pk']),
-                str(media['user']['username']),
-                str(media['user']['full_name']),
-                int(media['user']['is_private']),
-                str(media['user']['profile_pic_url'])
-            )
-        )
-        # TODO delete existing collection relations for this post
-        # self.cursor.execute('
+        # save the collections that this post belongs to
         self.cursor.execute(
             'DELETE FROM collection_relations WHERE post_pk=?',
             (media['pk'],)
