@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# (c) Stefan Countryman 2018
 
 """
 Pull saved Instagram posts as JSON, save them to a SQLite database, and
@@ -61,7 +62,7 @@ class InstagramDb(object):
     collections are stored."""
 
     def __init__(self, path=DEFAULT_DB_PATH):
-        """``dbpath`` is the path to the SQLite database that should be used.
+        """``path`` is the path to the SQLite database that should be used.
         """
         self.path = os.path.realpath(path)
         self.connection = sqlite3.connect(self.path)
