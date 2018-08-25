@@ -23,6 +23,39 @@ def dedent_sql(command):
     return dedent('\n'.join([l for l in lines if not set(l).issubset({' '})]))
 
 
+def get_media_links(media):
+    """Extract the highest-quality media URLs (and media dimensions) from the
+    ``media`` item in the JSON object returned by the Instagram API.
+    
+    Arguments
+    =========
+    media : `string`, `dict`
+        The only object contained in the ``post`` object returned by
+        Instagram's posts API. can either be a JSON string or a dictionary (as
+        parsed by ``json.loads``).
+    
+    Returns
+    =======
+    links : list
+        A list of dictionaries containing the ``height``, ``width``,
+        ``media_type``, and ``url`` of each image in this post.
+    """
+    if not isinstance(media, dict):
+        media = json.loads(media)
+    if media['media_type'] == 8:
+        return [get_media_links(m)[0] for m in media['carousel_media']]
+    if media['media_type'] == 1:
+        result = media['image_versions2']['candidates'][0]
+    elif media['media_type'] == 2:
+        result = media['video_versions'][0]
+    else:
+        raise ValueError("Unrecognized media_type: " +
+                         str(media['media_type']))
+    result = {k: result[k] for k in ('height', 'width', 'url')}
+    result['media_type'] = media['media_type']
+    return [result]
+
+
 class InstagramDb(object):
     """A representation of the database where Instagram posts, users, and
     collections are stored."""
@@ -90,8 +123,11 @@ class InstagramDb(object):
         """),
         POST_URLS=dedent_sql("""
             CREATE TABLE IF NOT EXISTS post_urls (
-                post_pk                     text NOT NULL,
-                url                         text NOT NULL,
+                post_pk                     text    NOT NULL,
+                url                         text    NOT NULL,
+                media_type                  integer NOT NULL,
+                height                      integer NOT NULL,
+                width                       integer NOT NULL,
                 download_path               text,
                 PRIMARY KEY (post_pk, url),
                 FOREIGN KEY (post_pk) REFERENCES posts (pk)
@@ -110,14 +146,17 @@ class InstagramDb(object):
             self.connection.commit()
         return self
 
-    def save_user(self, user, commit=True):
+    def save_user(self, user, overwrite=True, commit=True):
         """Save an instagram user (either a dict or raw JSON returned from the
-        API) to this database. Returns ``self`` to allow for chained
-        commands."""
+        API) to this database. If ``overwrite`` is ``True`` (default), replaces
+        existing records with the given value; otherwise, existing records are
+        left alone. Returns ``self`` to allow for chained commands."""
         if not isinstance(user, dict):
             user = json.loads(user)
         self.cursor.execute(
-            'INSERT OR REPLACE INTO users VALUES (?, ?, ?, ?, ?)',
+            'INSERT OR {} INTO users VALUES (?, ?, ?, ?, ?)'.format(
+                'REPLACE' if overwrite else 'IGNORE'
+            ),
             (
                 str(user['pk']),
                 str(user['username']),
@@ -132,13 +171,12 @@ class InstagramDb(object):
 
     def save_collection(self, collection_pk, name="", overwrite=True,
                         commit=True):
-        """Save an instagram collection (either a dict or raw JSON returned
-        from the API) to this database. ``collection_pk`` is the primary key of
-        the collection as returned by Instagram's API and ``name`` is the name
-        of the collection as defined by the user. If ``overwrite`` is ``True``,
-        overwrite any existing collection (default). Otherwise, only create the
-        entry if the collection is not already saved. Returns ``self`` to allow
-        for chained commands."""
+        """Save an instagram collection to this database. ``collection_pk`` is
+        the primary key of the collection as returned by Instagram's API and
+        ``name`` is the name of the collection as defined by the user. If
+        ``overwrite`` is ``True``, overwrite any existing collection (default).
+        Otherwise, only create the entry if the collection is not already
+        saved. Returns ``self`` to allow for chained commands."""
         self.cursor.execute(
             'INSERT OR {} INTO collections VALUES (?, "")'.format(
                 'REPLACE' if overwrite else 'IGNORE'
@@ -149,14 +187,36 @@ class InstagramDb(object):
             self.connection.commit()
         return self
 
+    def save_urls(self, post, commit=True):
+        """Save an instagram post's media URLs to this database's ``post_urls``
+        table. ``post`` can be a JSON string or a dict. Returns ``self`` to
+        allow for chained commands."""
+        if not isinstance(post, dict):
+            post = json.loads(post)
+        links = [(
+            post['media']['pk'],
+            link['url'],
+            link['media_type'],
+            link['height'],
+            link['width']
+        ) for link in get_media_links(post['media'])]
+        self.cursor.executemany(
+            'INSERT OR IGNORE INTO post_urls VALUES (?, ?, ?, ?, ?, NULL)',
+            links
+        )
+        if commit:
+            self.connection.commit()
+        return self
+
     def save_post(self, post, commit=True):
         """Save an instagram post (as raw JSON returned from the API) to this
         database. Returns ``self`` to allow for chained commands."""
         media = json.loads(post)['media']
         # make sure the user and collection are in their respective tables
-        self.save_user(media['user'], commit=False)
+        self.save_user(media['user'], overwrite=False, commit=False)
         for collection_pk in media['saved_collection_ids']:
             self.save_collection(collection_pk, overwrite=False, commit=False)
+        self.save_urls(post, commit=False)
         # save the post
         self.cursor.execute(
             'INSERT OR REPLACE INTO posts VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
