@@ -2,3 +2,5 @@ composer.json
 composer.lock
 vendor
 auth.php
+__pycache__
+.pytest_cache
