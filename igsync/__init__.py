@@ -15,6 +15,7 @@ from netrc import netrc
 from collections import namedtuple
 from http.cookiejar import CookieJar
 from textwrap import dedent
+from urllib.parse import urlparse
 from instagram_private_api import Client
 from instagram_private_api.errors import ClientConnectionError
 
@@ -181,6 +182,7 @@ class InstagramDb(object):
         POSTS=dedent_sql("""
             CREATE TABLE IF NOT EXISTS posts (
                 pk                          text    PRIMARY KEY,
+                code                        text    NOT NULL,
                 taken_at                    integer NOT NULL,
                 media_type                  integer NOT NULL,
                 comment_likes_enabled       integer NOT NULL,
@@ -211,6 +213,7 @@ class InstagramDb(object):
             CREATE TABLE IF NOT EXISTS post_urls (
                 post_pk                     text    NOT NULL,
                 url                         text    NOT NULL,
+                ind                         integer NOT NULL,
                 media_type                  integer NOT NULL,
                 height                      integer NOT NULL,
                 width                       integer NOT NULL,
@@ -283,12 +286,13 @@ class InstagramDb(object):
         links = [(
             post['media']['pk'],
             link['url'],
+            i,
             link['media_type'],
             link['height'],
             link['width']
-        ) for link in get_media_links(post['media'])]
+        ) for i, link in enumerate(get_media_links(post['media']))]
         self.cursor.executemany(
-            'INSERT OR IGNORE INTO post_urls VALUES (?, ?, ?, ?, ?, NULL)',
+            'INSERT OR IGNORE INTO post_urls VALUES (?, ?, ?, ?, ?, ?, NULL)',
             links
         )
         if commit:
@@ -309,9 +313,10 @@ class InstagramDb(object):
         self.save_urls(post, commit=False)
         # save the post
         self.cursor.execute(
-            'INSERT OR REPLACE INTO posts VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT OR REPLACE INTO posts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
             (
                 str(media['pk']),
+                str(media['code']),
                 int(media['taken_at']),
                 int(media['media_type']),
                 int(media['comment_likes_enabled']),
@@ -354,3 +359,33 @@ class InstagramDb(object):
         for pk in collection_pks:
             name = self.client.collection_feed(pk)['collection_name']
             self.save_collection(pk, name, overwrite=True)
+
+    def get_undownloaded_posts(self):
+        """Get a list of all post primary keys in the database that have not
+        yet been downloaded to a local path."""
+        self.cursor.execute("SELECT DISTINCT posts.pk FROM posts "
+                            "JOIN post_urls ON posts.pk = post_urls.post_pk "
+                            "WHERE post_urls.download_path IS NULL;")
+        return self.cursor.fetchall()
+
+    UrlInfo = namedtuple('UrlInfo', ('post_pk', 'code', 'url', 'index'))
+
+    def get_undownloaded_urls(self):
+        """Get a list of all media URL rows in the database that have not yet
+        been downloaded to a local path."""
+        self.cursor.execute(
+            "SELECT posts.pk, posts.code, post_urls.url, post_urls.ind "
+            "FROM post_urls JOIN posts ON post_urls.post_pk = posts.pk "
+            "WHERE post_urls.download_path IS NULL;"
+        )
+        return [self.UrlInfo(*row) for row in self.cursor.fetchall()]
+
+    @staticmethod
+    def get_media_path(urlinfo):
+        """Get the default download path from a UrlInfo object (for when we are
+        downloading media)"""
+        pk = urlinfo.post_pk
+        ext = os.path.basename(urlparse(urlinfo.url).path).split('.')[-1]
+        filename = '.'.join([urlinfo.code, str(urlinfo.index), ext])
+        return os.path.join(*[pk[-3*i-3:-3*i-1] + pk[-3*i-1]
+                              for i in range(len(pk)//3)], filename)
