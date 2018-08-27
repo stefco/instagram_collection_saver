@@ -967,9 +967,15 @@ def test_save_post():
         DB.save_post(post)
 
 
+def test_collection_sync():
+    """Test igsync's ability to sync collection names."""
+    DB.sync_collection_names(DB.get_anonymous_collections())
+
+
 def main():
     test_init_tables()
     test_save_post()
+    test_collection_sync()
 
 if __name__ == "__main__":
     main()
