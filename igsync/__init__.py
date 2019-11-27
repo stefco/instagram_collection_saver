@@ -11,6 +11,7 @@ import sqlite3
 import json
 import logging
 import pickle
+from pathlib import Path
 from netrc import netrc
 from collections import namedtuple
 from http.cookiejar import CookieJar
@@ -19,13 +20,10 @@ from urllib.parse import urlparse
 from instagram_private_api import Client
 from instagram_private_api.errors import ClientConnectionError
 
-LOCAL_STORAGE = os.path.join(os.path.expanduser("~"), ".local", "share",
-                             "igsync")
-COOKIE_JAR = os.path.join(LOCAL_STORAGE, "cookie.jar")
-DEFAULT_COLLECTION_DIR = os.path.expanduser(
-    os.path.join("~", "Pictures", "InstagramCollections")
-)
-DEFAULT_DB_PATH = os.path.join(DEFAULT_COLLECTION_DIR, "insta.sqlite")
+LOCAL_STORAGE = Path("~", ".local", "share", "igsync").expanduser()
+LOCAL_STORAGE.mkdir(parents=True, exist_ok=True)
+COOKIE_JAR = LOCAL_STORAGE / "cookie.jar"
+DEFAULT_DB_PATH = LOCAL_STORAGE / "insta.sqlite"
 
 
 def dedent_sql(command):
@@ -73,7 +71,7 @@ class InstagramDb(object):
     API."""
 
     def __init__(self, path=DEFAULT_DB_PATH, username=None, password=None,
-                 netrc_path=os.path.expanduser("~/.netrc")):
+                 netrc_path=Path("~", ".netrc").expanduser()):
         """
         Arguments
         =========
@@ -97,10 +95,10 @@ class InstagramDb(object):
             arguments).
         """
         self.username = None  # will get overwritten when/if we log in
-        self.path = os.path.realpath(path)
+        self.path = Path(path).resolve()
         self.connection = sqlite3.connect(self.path)
         self.cursor = self.connection.cursor()
-        self.netrc_path = netrc_path
+        self.netrc_path = Path(netrc_path).resolve()
         # if username and password were explicitly provided, initialize a
         # connection to instagram.com immediately. otherwise, this connection
         # will be generated as needed.
@@ -141,7 +139,7 @@ class InstagramDb(object):
                 self.login(creds[0], creds[2])
             except:
                 raise ValueError("Can't find usable .netrc authentication "
-                                 "info in given .netrc: " + self.netrc_path)
+                                 f"info in given .netrc: {self.netrc_path}")
         return self._client
 
     @client.setter
